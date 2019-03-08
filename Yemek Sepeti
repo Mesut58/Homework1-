@@ -1,0 +1,988 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Data;
+using System.Drawing;
+using System.Linq;
+using System.Text;
+using System.Windows.Forms;
+
+namespace YemekSepeti
+{
+    public partial class FirmaIslemler : Form
+    {
+        private DataTable dt;
+        private int FirmaID = -1;
+        private string EskiKullaniciAdi = "";
+
+        public FirmaIslemler(Form1 frm) // bu formun parent i anaform olacak
+        {
+            InitializeComponent();
+            this.MdiParent = frm;
+            GridDoldur();
+        }
+
+        private void GridDoldur()
+        {
+            if (dataGridView1.Rows.Count > 0)
+            {
+                for (int i = 0; i < dt.Rows.Count; i++)
+                {
+                    dt.Rows.RemoveAt(i);
+                }
+            }
+            if (Kullanici.firmalar.Count > 0)
+            {
+                dt = null;
+                dt = new DataTable();
+                dt.Columns.Add("FirmaID");
+                dt.Columns.Add("Firma İl");
+                dt.Columns.Add("Firma İlçe");
+                dt.Columns.Add("Firma İsim");
+                dt.Columns.Add("Firma Tel");
+                dt.Columns.Add("Firma Kullanıcı");
+                dt.Columns.Add("Firma Şifre");
+                for (int i = 0; i < Kullanici.firmalar.Count; i++)
+                {
+                    DataRow dr = dt.NewRow();
+                    for (int j = 0; j < Kullanici.firmalar[i].ToString().Split('#').Length; j++)
+                    {
+                        dr[j] = Kullanici.firmalar[i].ToString().Split('#')[j];
+                    }
+                    dt.Rows.Add(dr);
+                }
+                dataGridView1.DataSource = dt;
+                dataGridView1.Columns[0].Visible = false;
+                dataGridView1.Columns[6].Visible = false;
+            }
+        }
+
+        private void btnKaydet_Click(object sender, EventArgs e)
+        {
+            if (FirmaID < 0) // ekleme kısmı
+            {
+                if (Kullanici.firmalar.Count > 0)
+                    FirmaID = Convert.ToInt32(Kullanici.firmalar[Kullanici.firmalar.Count - 1].ToString().Split('#')[0]) + 1;
+
+                for (int i = 0; i < Kullanici.kullanicilar.Count; i++) // kayıt olurken aynı kullanıcı adı var mı onu kontrol ediyoruz..
+                {
+                    if (txtKullanici.Text.Trim().Equals(Kullanici.kullanicilar[i].ToString().Split('#')[1]))
+                    {
+                        MessageBox.Show("Aynı kullanıcı ismi zaten mevcut !!\r\nBaska bir kullanıcı adı deneyiniz !!", "UYARI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+
+                string FirmaIl = txtIl.Text;
+                string FirmaIlce = cmbIlceler.Text;
+                string FirmaIsim = txtIsim.Text;
+                string FirmaTel = txtTel.Text;
+                string FirmaKullanici = txtKullanici.Text;
+                string FirmaSifre = txtSifre.Text;
+                string firmaEkle = String.Format("{0}#{1}#{2}#{3}#{4}#{5}#{6}",
+                                    FirmaID, FirmaIl, FirmaIlce, FirmaIsim, FirmaTel, FirmaKullanici, FirmaSifre);
+                Kullanici.firmalar.Add(firmaEkle); // arrayliste ekliyoruz sonra
+
+                int kullaniciID = Convert.ToInt32(Kullanici.kullanicilar[Kullanici.kullanicilar.Count - 1].ToString().Split('#')[0]) + 1;
+                string arrayEkle = String.Format("{0}#{1}#{2}#{3}", kullaniciID, FirmaKullanici, FirmaSifre, 2);
+                Kullanici.kullanicilar.Add(arrayEkle);
+
+                // firmalar ve kullanıcıları dosyalara yazıyoruz son güncel hallerini
+                // yeni firma giriş yaparken sorun çıkmasın diye kullanıcılar dosyasına da ekleme 
+                // yapmamız gerekiyor.
+                StreamWriter sw = new StreamWriter(Kullanici.yol + "kullanicilar.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                for (int i = 0; i < Kullanici.kullanicilar.Count; i++)
+                    sw.WriteLine(Kullanici.kullanicilar[i].ToString());
+                sw.Close();
+
+                sw = new StreamWriter(Kullanici.yol + "firmalar.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                for (int i = 0; i < Kullanici.firmalar.Count; i++)
+                    sw.WriteLine(Kullanici.firmalar[i].ToString());
+                sw.Close();
+                MessageBox.Show("Firma Başarıyla Kaydedildi !!", "BİLGİ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                GridDoldur();
+                btnKaydet.Text = "Güncelle";
+                btnKaydet.Image = YemekSepeti.Properties.Resources.refresh24;
+            }
+            else // güncelleme kısmı
+            {
+                string FirmaIl = txtIl.Text;
+                string FirmaIlce = cmbIlceler.Text;
+                string FirmaIsim = txtIsim.Text;
+                string FirmaTel = txtTel.Text;
+                string FirmaKullanici = txtKullanici.Text;
+                string FirmaSifre = txtSifre.Text;
+                string firmaEkle = String.Format("{0}#{1}#{2}#{3}#{4}#{5}#{6}",
+                                    FirmaID, FirmaIl, FirmaIlce, FirmaIsim, FirmaTel, FirmaKullanici, FirmaSifre);
+
+                // hangi firmayı güncelleyeceğini buluyoruz sadece onu güncellememiz lazım çünkü
+                // bunu da firma ID ile yapabiliyoruz kontrol ederek dosaynın içindeki ile elimizdekini
+                for (int i = 0; i < Kullanici.firmalar.Count; i++) 
+                {
+                    if (Convert.ToInt32(Kullanici.firmalar[i].ToString().Split('#')[0]) == FirmaID)
+                        Kullanici.firmalar[i] = firmaEkle;
+                }
+
+                // kullanıcı üzerinde de yapılacak değişikliği güncellememiz lazım 
+                // onu da kullanıcı adını kontrol ederek yapıyoruz. nasıl gidiyoruz ?
+                for (int i = 0; i < Kullanici.kullanicilar.Count; i++) // burası düzeltilecek sorun var burda
+                {
+                    if (Kullanici.kullanicilar[i].ToString().Split('#')[1] == EskiKullaniciAdi)
+                    {
+                        int kullaniciID = Convert.ToInt32(Kullanici.kullanicilar[i].ToString().Split('#')[0]);
+                        string arrayEkle = String.Format("{0}#{1}#{2}#{3}", kullaniciID, FirmaKullanici, FirmaSifre, 2);
+                        Kullanici.kullanicilar[i] = arrayEkle;
+                    }
+                } 
+
+                StreamWriter sw = new StreamWriter(Kullanici.yol + "kullanicilar.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                for (int i = 0; i < Kullanici.kullanicilar.Count; i++)
+                    sw.WriteLine(Kullanici.kullanicilar[i].ToString());
+                sw.Close();
+
+                sw = new StreamWriter(Kullanici.yol + "firmalar.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                for (int i = 0; i < Kullanici.firmalar.Count; i++)
+                    sw.WriteLine(Kullanici.firmalar[i].ToString());
+                sw.Close();
+                MessageBox.Show("Firma Başarıyla Güncellendi !!", "BİLGİ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                GridDoldur();
+                btnKaydet.Text = "Güncelle";
+            }
+        }
+
+        private void dataGridView1_RowHeaderMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            // satırın başına tıklandığında o firmanın bilgileri üstte textbox lara doluyor
+            // firmaid de anyı şekilde kaydederken de firmaid yi kontrol ederek acaba
+            // yeni firme mi ekliyor yoksa olan firmayı mı güncelliyor anlıyoruz
+            // griddeki satırın basına tıkladığımızda bilgileri üste yazıyoruz ya id yi de ayni
+            // şekilde alıyoruz 1. sutun id yi veriyor ya
+            // kaydetme, güncelleme tamam silmeyi de yapmamız lazım dimi ?
+            // beraber yapalım o zaman olmaz mı  :)yani o bzm içn biraz üst düzey butonla yapsak
+            // yok yok şimdi mesala buton un click olayı varya aynı şekilde gridin de kendine özel fonksiyonları
+            // var onlardan yararlanacağız dataGridView1_RowHeaderMouseClick bunun yerine DoubleClick olacak
+
+            FirmaID = Convert.ToInt32(dt.Rows[e.RowIndex][0]);
+            txtIl.Text = dt.Rows[e.RowIndex][1].ToString();
+            cmbIlceler.SelectedItem = dt.Rows[e.RowIndex][2].ToString();
+            txtIsim.Text = dt.Rows[e.RowIndex][3].ToString();
+            txtTel.Text = dt.Rows[e.RowIndex][4].ToString();
+            txtKullanici.Text = dt.Rows[e.RowIndex][5].ToString();
+            txtSifre.Text = dt.Rows[e.RowIndex][6].ToString();
+            btnKaydet.Text = "Güncelle";
+
+            EskiKullaniciAdi = dt.Rows[e.RowIndex][5].ToString();
+            btnKaydet.Image = YemekSepeti.Properties.Resources.refresh24;
+            //MessageBox.Show(FirmaID.ToString());
+        }
+
+        private void btnYeniFirma_Click(object sender, EventArgs e)
+        {
+            // yeni firma dediği zaman da textbox ları boşaltıyoruz
+            // firmaid yi de -1 yapıp kaydet e girmesini sağlıuoruz...
+            FirmaID = -1;
+            txtIl.Text = "Erzurum";
+            cmbIlceler.SelectedIndex = -1;
+            txtIsim.Text = "";
+            txtKullanici.Text = "";
+            txtSifre.Text = "";
+            txtTel.Text = "";
+            btnKaydet.Text = "Kaydet";
+            btnKaydet.Image = YemekSepeti.Properties.Resources.add24;
+        }
+
+        private void dataGridView1_RowHeaderMouseDoubleClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            DialogResult dr = MessageBox.Show("Firma Kaydı Silinecektir !!\r\nDevam Etmek İstiyor Musunuz ?", "UYARI", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (dr == DialogResult.Yes)
+            {
+                StreamWriter sw = null;
+                for (int i = 0; i < Kullanici.firmalar.Count; i++)
+                {
+                    if (FirmaID == Convert.ToInt32(Kullanici.firmalar[i].ToString().Split('#')[0]))
+                    {
+                        Kullanici.firmalar.RemoveAt(i); // arraylist den sildik
+
+                        sw = new StreamWriter(Kullanici.yol + "firmalar.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                        for (int j = 0; j < Kullanici.firmalar.Count; j++) // burda da dosyadan siliyoruz
+                            sw.WriteLine(Kullanici.firmalar[j].ToString());
+                        sw.Close();
+                    }
+                }
+
+                for (int i = 0; i < Kullanici.kullanicilar.Count; i++)
+                {
+                    if (txtKullanici.Text.Equals(Kullanici.kullanicilar[i].ToString().Split('#')[1]))
+                    {
+                        Kullanici.kullanicilar.RemoveAt(i);
+
+                        sw = new StreamWriter(Kullanici.yol + "kullanicilar.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                        for (int j = 0; j < Kullanici.kullanicilar.Count;j++)
+                            sw.WriteLine(Kullanici.kullanicilar[j].ToString());
+                        sw.Close();
+                    }
+                }
+
+                MessageBox.Show("Firma Başarıyla Silindi !!", "BİLGİ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                GridDoldur();
+                btnYeniFirma.PerformClick();
+            }
+            else
+                return;
+        }
+    }
+}
+
+
+
+
+
+
+
+
+namespace YemekSepeti
+{
+    public partial class Form1 : Form
+    {
+        public static string FirmaAdi = "";
+        public static string FirmaIlce = "";
+
+        public Form1()
+        {
+            InitializeComponent();
+
+            // kullanıcı tibine göre bazı menüleri göremeyecek
+            // örneğin firma yönetim kısmını göremeyecek
+            // veya müşteri firma ya da yönetim kısmını göremeyecek
+            if (Kullanici.kullaniciTipi == 1)
+            {
+                firmaToolStripMenuItem.Visible = false;
+                müşteriToolStripMenuItem.Visible = false;
+                this.Text = ".. :: YÖNETİCİ :: ..";
+            }
+            else if(Kullanici.kullaniciTipi == 2)
+            {
+                yönetimToolStripMenuItem.Visible = false;
+                müşteriToolStripMenuItem.Visible = false;
+                for (int i = 0; i < Kullanici.firmalar.Count; i++)
+                {
+                    if (Kullanici.firmalar[i].ToString().Split('#')[5] == Kullanici.kullaniciAdi)
+                    {
+                        this.Text = String.Format(".. :: {0} :: ..", Kullanici.firmalar[i].ToString().Split('#')[3]);
+                        FirmaAdi = Kullanici.firmalar[i].ToString().Split('#')[3];
+                    }
+                }
+            }
+            else if (Kullanici.kullaniciTipi == 3)
+            {
+                yönetimToolStripMenuItem.Enabled = false;
+                firmaToolStripMenuItem.Enabled = false;
+                this.Text = String.Format(".. :: {0} :: ..", Kullanici.kullaniciAdi);
+            }
+        }
+
+        private void çıkışToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Application.Exit();
+        }
+
+        private void Form1_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            Application.Exit();
+        }
+
+        private void firmaİşlemleriToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new FirmaIslemler(this).Show(); // form1 i ona yolluyoyoruz
+        }
+
+        private void ürünBilgileriToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new UrunIslemler(this).Show();
+        }
+
+        private void ürünAramaToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new UrunArama(this).Show();
+        }
+
+        private void sepetimToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new Sepetim(this).Show();
+        }
+
+        private void siparişListesiToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            new SiparisListesi(this).Show();
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+namespace YemekSepeti
+{
+    public partial class Kullanici : Form
+    {
+        // her bilgi icin kullanılacak değişkenler
+        // arraylist dinamik dizi gibi düşünebiliriz
+        // boyut belirtmeden ekleme yapibliyorsun
+        // statik olmasının amacı class'ın nesnesini oluşturmadan direk erişebilirsin
+
+        public static ArrayList kullanicilar = new ArrayList();
+        public static ArrayList firmalar = new ArrayList();
+        public static ArrayList musteriler = new ArrayList();
+        public static ArrayList siparisler = new ArrayList();
+        public static ArrayList urunler = new ArrayList();
+
+        // dosyaların olduğu dizini yol değişkeninde tuttuk
+        public static string yol = Application.StartupPath + "\\dosyalar\\";
+
+        // kullanıcı tipini anaformda kullanıcıya göre görebileceği menüler değişecek 
+        // o yüzden tutuyoruz..
+        public static int kullaniciTipi = -1;
+        public static string kullaniciAdi = "";
+
+        private int id = 1;
+
+        public Kullanici()
+        {
+            InitializeComponent();
+        }
+
+        private void Kullanici_Load(object sender, EventArgs e)
+        {
+            try
+            {
+                // kullanıcılar.txt dosyasini okuyoruz..
+                kullanicilar.Clear();
+                string line = "";
+                StreamReader reader = new StreamReader(yol + "kullanicilar.txt", Encoding.GetEncoding("windows-1254"));
+                while ((line = reader.ReadLine()) != null)
+                {
+                    kullanicilar.Add(line);
+                }
+                reader.Close();
+
+                // firmalar.txt dosyasini okuyoruz..
+                firmalar.Clear();
+                reader = new StreamReader(yol + "firmalar.txt", Encoding.GetEncoding("windows-1254"));
+                while ((line = reader.ReadLine()) != null)
+                {
+                    firmalar.Add(line);
+                }
+                reader.Close();
+
+                // siparisler.txt dosyasını okuyoruz
+                // encoding i türkçe karakterlerde sorun çıkarmasın diye yapıyoruz..
+                siparisler.Clear();
+                reader = new StreamReader(yol + "siparisler.txt", Encoding.GetEncoding("windows-1254"));
+                while ((line = reader.ReadLine()) != null)
+                {
+                    siparisler.Add(line);
+                }
+                reader.Close();
+
+                urunler.Clear();
+                reader = new StreamReader(yol + "urunler.txt", Encoding.GetEncoding("windows-1254"));
+                while ((line = reader.ReadLine()) != null)
+                {
+                    urunler.Add(line);
+                }
+                reader.Close();
+                //MessageBox.Show(kullanicilar.Count.ToString());
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message); }
+        }
+
+        private void chkYeniUye_CheckedChanged(object sender, EventArgs e)
+        {
+            // yeni üye mi yoksa giriş mi yapacak anlamak için yapıyoruz bunları.
+            // hani kullanıcı kayıtlarında sifreyi 2 kere yazdırır ya onun için
+            if (chkYeniUye.Checked)
+            {
+                lblSifrreTekrar.Visible = true;
+                txtSifreTekrar.Visible = true;
+                chkYeniUye.Location = new Point(chkYeniUye.Location.X, chkYeniUye.Location.Y + 30);
+                btnGiris.Location = new Point(btnGiris.Location.X, btnGiris.Location.Y + 30);
+                this.Height += 40;
+                btnGiris.Text = "   Kaydet";
+            }
+            else
+            {
+                lblSifrreTekrar.Visible = false;
+                txtSifreTekrar.Visible = false;
+                chkYeniUye.Location = new Point(chkYeniUye.Location.X, chkYeniUye.Location.Y - 30);
+                btnGiris.Location = new Point(btnGiris.Location.X, btnGiris.Location.Y - 30);
+                this.Height -= 40;
+                btnGiris.Text = "   Giriş";
+            }
+        }
+
+        private void btnGiris_Click(object sender, EventArgs e)
+        {
+            if (chkYeniUye.Checked) // giriş mi yapacak yeni üye kaydı mı ?
+            {
+                id = -1;
+                if (txtSifre.Text.Trim().Equals(txtSifreTekrar.Text.Trim()))
+                {
+                    for (int i = 0; i < kullanicilar.Count; i++) // kayıt olurken aynı kullanıcı adı var mı onu kontrol ediyoruz..
+                    {
+                        if (txtKullniciAdi.Text.Trim().Equals(kullanicilar[i].ToString().Split('#')[1]))
+                        {
+                            MessageBox.Show("Aynı kullanıcı ismi zaten mevcut !!\r\nBaska bir kullanıcı adı deneyiniz !!", "UYARI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+                    }
+
+                    if(kullanicilar.Count > 0)
+                        id = Convert.ToInt32(kullanicilar[kullanicilar.Count - 1].ToString().Split('#')[0]) + 1;
+                    
+                    // yeni kayıt için dosyaya yeni üyeyi ekliyoruz...
+                    string kullaniciAdi = txtKullniciAdi.Text.Trim();
+                    string sifre = txtSifre.Text.Trim();
+                    string arrayEkle = String.Format("{0}#{1}#{2}#{3}", id, kullaniciAdi, sifre, 3);
+                    kullanicilar.Add(arrayEkle);
+
+                    StreamWriter sw = new StreamWriter(yol + "kullanicilar.txt", false, Encoding.GetEncoding("windows-1254"));
+                    
+                    for (int i = 0; i < kullanicilar.Count; i++)
+                        sw.WriteLine(kullanicilar[i].ToString());
+
+                    sw.Close(); 
+                    
+                    if (kullanicilar.Count > 0)
+                        id = Convert.ToInt32(kullanicilar[kullanicilar.Count - 1].ToString().Split('#')[0]) + 1;
+
+                    // yeni kayıt için dosyaya yeni üyeyi ekliyoruz...
+                    kullaniciAdi = txtKullniciAdi.Text.Trim();
+                    sifre = txtSifre.Text.Trim();
+                    arrayEkle = String.Format("{0}#{1}#{2}#{3}", id, kullaniciAdi, sifre, 3);
+                    kullanicilar.Add(arrayEkle);
+
+                    sw = new StreamWriter(yol + "urunler.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                    for (int i = 0; i < kullanicilar.Count; i++)
+                        sw.WriteLine(urunler[i].ToString());
+
+                    sw.Close();
+
+                    MessageBox.Show("Bilgiler Başarıyla Kaydedildi", "BİLGİ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                }
+                chkYeniUye.CheckState = CheckState.Unchecked;
+            }
+            else  // eğer giriş yapıyorsa da kullanıcı tipini ve kullanıcı adını alıyoruz..
+            {
+                for (int i = 0; i < kullanicilar.Count; i++)
+                {
+                    if(txtKullniciAdi.Text.Trim().Equals(kullanicilar[i].ToString().Split('#')[1]))
+                    {
+                        kullaniciAdi = kullanicilar[i].ToString().Split('#')[1];
+                        kullaniciTipi = Convert.ToInt32(kullanicilar[i].ToString().Split('#')[3]);
+                        this.Hide();
+                        new Form1().ShowDialog(); // girişi başarılıysa da anaforma geçiyoruz
+                    }
+                }
+                if (kullaniciAdi.Equals(""))
+                {
+                    MessageBox.Show("Bu isimde bir kullanıcı bulunmamaktadır !!", "UYARI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+namespace YemekSepeti
+{
+    public partial class Sepetim : Form
+    {
+        private ArrayList sepetim = new ArrayList();
+        private ArrayList siparisler = new ArrayList();
+
+        private DataTable dt;
+
+        public Sepetim(Form1 frm)
+        {
+            InitializeComponent();
+            this.MdiParent = frm;
+
+            string yol = Application.StartupPath + "\\dosyalar\\";
+            string line = "";
+            StreamReader reader = new StreamReader(yol + "siparisler.txt", Encoding.GetEncoding("windows-1254"));
+            while ((line = reader.ReadLine()) != null)
+            {
+                siparisler.Add(line);
+            }
+            reader.Close();
+
+            for (int i = 0; i < siparisler.Count; i++)
+            {
+                if (Kullanici.kullaniciAdi.Equals(siparisler[i].ToString().Split('#')[6]))
+                    sepetim.Add(siparisler[i]);
+            }
+
+            GridDoldur();
+        }
+
+        private void GridDoldur()
+        {
+            if (sepetim.Count > 0)
+            {
+                dt = null;
+                dt = new DataTable();
+                dt.Columns.Add("ÜrünID");
+                dt.Columns.Add("Ürün Adı");
+                dt.Columns.Add("Ürün Fiyatı (TL)", typeof(float));
+                dt.Columns.Add("Firma Adi");
+                dt.Columns.Add("Firma Kullanıcı");
+                dt.Columns.Add("Firma İlçe");
+                dt.Columns.Add("Müşteri");
+                dt.Columns.Add("Sipariş Tarih");
+
+                for (int i = 0; i < sepetim.Count; i++)
+                {
+                    DataRow dr = dt.NewRow();
+                    for (int j = 0; j < sepetim[i].ToString().Split('#').Length; j++)
+                    {
+                        dr[j] = sepetim[i].ToString().Split('#')[j];
+                    }
+                    dt.Rows.Add(dr);
+                }
+                dataGridView1.Columns.Clear();
+                dataGridView1.DataSource = dt;
+
+                dataGridView1.Columns[0].Visible = false;
+                dataGridView1.Columns[4].Visible = false;
+                //dataGridView1.Columns[4].Visible = false;
+                dataGridView1.Columns[6].Visible = false;
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+namespace YemekSepeti
+{
+    public partial class SiparisListesi : Form
+    {
+        private ArrayList siparisler = new ArrayList();
+        private DataTable dt;
+
+        public SiparisListesi(Form1 frm)
+        {
+            InitializeComponent();
+            this.MdiParent = frm;
+
+            for (int i = 0; i < Kullanici.siparisler.Count; i++)
+            {
+                if (Kullanici.kullaniciAdi.Equals(Kullanici.siparisler[i].ToString().Split('#')[4]))
+                    siparisler.Add(Kullanici.siparisler[i]);
+            }
+
+            GridDoldur();
+        }
+
+        private void GridDoldur()
+        {
+            if (siparisler.Count > 0)
+            {
+                dt = null;
+                dt = new DataTable();
+                dt.Columns.Add("ÜrünID");
+                dt.Columns.Add("Ürün Adı");
+                dt.Columns.Add("Ürün Fiyatı (TL)", typeof(float));
+                dt.Columns.Add("Firma Adi");
+                dt.Columns.Add("Firma Kullanıcı");
+                dt.Columns.Add("Firma İlçe");
+                dt.Columns.Add("Müşteri");
+                dt.Columns.Add("Sipariş Tarih");
+
+                for (int i = 0; i < siparisler.Count; i++)
+                {
+                    DataRow dr = dt.NewRow();
+                    for (int j = 0; j < siparisler[i].ToString().Split('#').Length; j++)
+                    {
+                        dr[j] = siparisler[i].ToString().Split('#')[j];
+                    }
+                    dt.Rows.Add(dr);
+                }
+                dataGridView1.Columns.Clear();
+                dataGridView1.DataSource = dt;
+
+                dataGridView1.Columns[0].Visible = false;
+                dataGridView1.Columns[3].Visible = false;
+                dataGridView1.Columns[4].Visible = false;
+                dataGridView1.Columns[5].Visible = false;
+            }
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+namespace YemekSepeti
+{
+    public partial class UrunArama : Form
+    {
+        private ArrayList aramaListe = new ArrayList();
+        private DataTable dt;
+        private int SiparisID = 1;
+
+        public UrunArama(Form1 frm)
+        {
+            InitializeComponent();
+            this.MdiParent = frm;
+        }
+
+        private void GridDoldur()
+        {
+            if (aramaListe.Count > 0)
+            {
+                dt = null;
+                dt = new DataTable();
+                dt.Columns.Add("ÜrünID");
+                dt.Columns.Add("Ürün Adı");
+                dt.Columns.Add("Ürün Fiyatı (TL)", typeof(float));
+                dt.Columns.Add("Firma Adi");
+                dt.Columns.Add("Firma Kullanıcı");
+                dt.Columns.Add("Firma İlçe");
+
+                for (int i = 0; i < aramaListe.Count; i++)
+                {
+                    DataRow dr = dt.NewRow();
+                    for (int j = 0; j < aramaListe[i].ToString().Split('#').Length; j++)
+                    {
+                        dr[j] = aramaListe[i].ToString().Split('#')[j];
+                    }
+                    dt.Rows.Add(dr);
+                }
+                dataGridView1.Columns.Clear();
+                dataGridView1.DataSource = dt;
+                dataGridView1.Columns.Insert(0, new DataGridViewCheckBoxColumn());
+
+                dataGridView1.Columns[0].Width = 10;
+
+                dataGridView1.Columns[1].ReadOnly = true;
+                dataGridView1.Columns[2].ReadOnly = true;
+                dataGridView1.Columns[3].ReadOnly = true;
+                dataGridView1.Columns[4].ReadOnly = true;
+                dataGridView1.Columns[5].ReadOnly = true;
+                dataGridView1.Columns[6].ReadOnly = true;
+
+                dataGridView1.Columns[1].Visible = false;
+                //dataGridView1.Columns[4].Visible = false;
+                dataGridView1.Columns[5].Visible = false;
+                //dataGridView1.Columns[5].Visible = false;
+            }
+        }
+
+        private void btnArama_Click(object sender, EventArgs e)
+        {
+            aramaListe = null;
+            aramaListe = new ArrayList();
+
+            if (cmbIlceler.SelectedIndex == -1)
+            {
+                if (txtUrunAdi.Text.Equals(""))
+                    aramaListe = Kullanici.urunler;
+                else
+                {
+                    for (int i = 0; i < Kullanici.urunler.Count; i++)
+                    {
+                        if (txtUrunAdi.Text.Equals(Kullanici.urunler[i].ToString().Split('#')[1]))
+                            aramaListe.Add(Kullanici.urunler[i]);
+                    }
+                }
+            }
+            else
+            {
+                if (txtUrunAdi.Text.Equals(""))
+                {
+                    for (int i = 0; i < Kullanici.urunler.Count; i++)
+                    {
+                        if (cmbIlceler.Text.Equals(Kullanici.urunler[i].ToString().Split('#')[5]))
+                            aramaListe.Add(Kullanici.urunler[i]);
+                    }
+                }
+                else
+                {
+                    for (int i = 0; i < Kullanici.urunler.Count; i++)
+                    {
+                        if (cmbIlceler.Text.Equals(Kullanici.urunler[i].ToString().Split('#')[5]) &&
+                            txtUrunAdi.Text.Equals(Kullanici.urunler[i].ToString().Split('#')[1]))
+                            aramaListe.Add(Kullanici.urunler[i]);
+                    }
+                }
+            }
+            GridDoldur();
+        }
+
+        private void btnSiparis_Click(object sender, EventArgs e)
+        {
+            for (int i = 0; i < dataGridView1.Rows.Count; i++)
+            {
+                //MessageBox.Show(Convert.ToBoolean(dataGridView1.Rows[i].Cells[0].Value).ToString());
+                if (Convert.ToBoolean(dataGridView1.Rows[i].Cells[0].Value))
+                {
+                    if (Kullanici.siparisler.Count > 0)
+                        SiparisID = Convert.ToInt32(Kullanici.siparisler[Kullanici.siparisler.Count - 1].ToString().Split('#')[0]) + 1;
+                    string UrunAdi = dataGridView1.Rows[i].Cells[2].Value.ToString();
+                    string UrunFiyat = dataGridView1.Rows[i].Cells[3].Value.ToString();
+                    string FirmaAdi = dataGridView1.Rows[i].Cells[4].Value.ToString();
+                    string FirmaKullanici = dataGridView1.Rows[i].Cells[5].Value.ToString();
+                    string FirmaIlce = dataGridView1.Rows[i].Cells[6].Value.ToString();
+                    string SiparisGun = DateTime.Today.ToShortDateString();
+
+                    string siparisEkle = String.Format("{0}#{1}#{2}#{3}#{4}#{5}#{6}#{7}",
+                                    SiparisID, UrunAdi, UrunFiyat, FirmaAdi, FirmaKullanici, FirmaIlce, Kullanici.kullaniciAdi, SiparisGun);
+
+                    Kullanici.siparisler.Add(siparisEkle);
+                }
+            }
+
+            StreamWriter sw = new StreamWriter(Kullanici.yol + "siparisler.txt", false, Encoding.GetEncoding("windows-1254"));
+
+            for (int i = 0; i < Kullanici.siparisler.Count; i++)
+                sw.WriteLine(Kullanici.siparisler[i].ToString());
+            sw.Close();
+
+            MessageBox.Show("Sipariş kaydı başarıyla gerçekleşti !!", "BAŞARILI", MessageBoxButtons.OK, MessageBoxIcon.Information);
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+namespace YemekSepeti
+{
+    public partial class UrunIslemler : Form
+    {
+        private DataTable dt;
+        private int UrunID = -1;
+        private string FirmaAdi = "";
+        private string FirmaIlce = "";
+
+        public UrunIslemler(Form1 frm)
+        {
+            InitializeComponent();
+            this.MdiParent = frm;
+            GridDoldur();
+        }
+
+        private void GridDoldur()
+        {
+            if (dataGridView1.Rows.Count > 0)
+            {
+                for (int i = 0; i < dt.Rows.Count; i++)
+                {
+                    dt.Rows.RemoveAt(i);
+                }
+            }
+            if (Kullanici.firmalar.Count > 0)
+            {
+                dt = null;
+                dt = new DataTable();
+                dt.Columns.Add("ÜrünID");
+                dt.Columns.Add("Ürün Adı");
+                dt.Columns.Add("Ürün Fiyatı (TL)", typeof(float));
+                dt.Columns.Add("Firma Adi");
+                dt.Columns.Add("Firma Kullanıcı");
+                dt.Columns.Add("Firma İlçe");
+
+                for (int i = 0; i < Kullanici.urunler.Count; i++)
+                {
+                    if (Kullanici.kullaniciAdi.Equals(Kullanici.urunler[i].ToString().Split('#')[4]))
+                    {
+                        FirmaAdi = Kullanici.urunler[i].ToString().Split('#')[3];
+                        DataRow dr = dt.NewRow();
+                        for (int j = 0; j < Kullanici.urunler[i].ToString().Split('#').Length; j++)
+                        {
+                            dr[j] = Kullanici.urunler[i].ToString().Split('#')[j];
+                        }
+                        dt.Rows.Add(dr);
+                    }
+                }
+                dataGridView1.DataSource = dt;
+
+                dataGridView1.Columns[0].Visible = false;
+                dataGridView1.Columns[3].Visible = false;
+                dataGridView1.Columns[4].Visible = false;
+                dataGridView1.Columns[5].Visible = false;
+            }
+        }
+
+        private void btnKaydet_Click(object sender, EventArgs e)
+        {
+            // ilk olarak boş birşey girilmemesini test ediyoruz..
+            if (txtUrunAdi.Text.Equals("") || txtUrunFiyat.Text.Equals(""))
+            {
+                MessageBox.Show("Bilgileri eksik girmeyiniz !!", "UYARI", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+
+            if (UrunID < 0)
+            {
+                for (int i = 0; i < Kullanici.urunler.Count; i++)
+                {
+                    if (txtUrunAdi.Text.Trim().Equals(Kullanici.urunler[i].ToString().Split('#')[1]) &&
+                        Kullanici.urunler[i].ToString().Split('#')[1].Equals(Kullanici.kullaniciAdi))
+                    {
+                        MessageBox.Show("Aynı ürün ismi zaten mevcut !!\r\nBaska bir ürün giriniz !!", "UYARI", 
+                            MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                        return;
+                    }
+                }
+
+                for (int i = 0; i < Kullanici.firmalar.Count; i++)
+                {
+                    if (Kullanici.firmalar[i].ToString().Split('#')[5].Equals(Kullanici.kullaniciAdi))
+                        FirmaIlce = Kullanici.firmalar[i].ToString().Split('#')[2];
+                }
+
+                if (Kullanici.urunler.Count > 0)
+                    UrunID = Convert.ToInt32(Kullanici.urunler[Kullanici.urunler.Count - 1].ToString().Split('#')[0]) + 1;
+
+                string UrunAdi = txtUrunAdi.Text;
+                string UrunFiyat = txtUrunFiyat.Text.Replace('.', ',');
+                string urunekle = String.Format("{0}#{1}#{2}#{3}#{4}#{5}",
+                                    UrunID, UrunAdi, UrunFiyat, FirmaAdi, Kullanici.kullaniciAdi, FirmaIlce);
+                Kullanici.urunler.Add(urunekle); // arrayliste ekliyoruz sonra
+
+                StreamWriter sw = new StreamWriter(Kullanici.yol + "urunler.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                for (int i = 0; i < Kullanici.urunler.Count; i++)
+                    sw.WriteLine(Kullanici.urunler[i].ToString());
+                sw.Close();
+
+                MessageBox.Show("Ürün kaydı başarıyla gerçekleşti !!", "BAŞARILI", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                GridDoldur();
+                btnKaydet.Text = "Güncelle";
+                btnKaydet.Image = YemekSepeti.Properties.Resources.refresh24;
+            }
+            else
+            {
+                string UrunAdi = txtUrunAdi.Text;
+                string UrunFiyat = txtUrunFiyat.Text.Replace('.', ',');
+                string urunekle = String.Format("{0}#{1}#{2}#{3}#{4}#{5}",
+                                    UrunID, UrunAdi, UrunFiyat, FirmaAdi, Kullanici.kullaniciAdi, FirmaIlce);
+                Kullanici.urunler.Add(urunekle); // arrayliste ekliyoruz sonra
+
+                for (int i = 0; i < Kullanici.urunler.Count; i++)
+                {
+                    if (Convert.ToInt32(Kullanici.urunler[i].ToString().Split('#')[0]) == UrunID)
+                        Kullanici.urunler[i] = urunekle;
+                }
+
+                StreamWriter sw = new StreamWriter(Kullanici.yol + "urunler.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                for (int i = 0; i < Kullanici.urunler.Count; i++)
+                    sw.WriteLine(Kullanici.urunler[i].ToString());
+                sw.Close();
+
+                MessageBox.Show("Ürün bilgileri güncellendi !!", "BAŞARILI", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                GridDoldur();
+                btnKaydet.Text = "Güncelle";
+                btnKaydet.Image = YemekSepeti.Properties.Resources.refresh24;
+            }
+        }
+
+        private void dataGridView1_RowHeaderMouseClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            UrunID = Convert.ToInt32(dt.Rows[e.RowIndex][0]);
+            txtUrunAdi.Text = dt.Rows[e.RowIndex][1].ToString();
+            txtUrunFiyat.Text = dt.Rows[e.RowIndex][2].ToString();
+            FirmaAdi = dt.Rows[e.RowIndex][3].ToString();
+            FirmaIlce = dt.Rows[e.RowIndex][5].ToString();
+            //MessageBox.Show(FirmaIlce);
+            btnKaydet.Text = "Güncelle";
+            btnKaydet.Image = YemekSepeti.Properties.Resources.refresh24;
+        }
+
+        private void btnYeniUrun_Click(object sender, EventArgs e)
+        {
+            UrunID = -1;
+            txtUrunAdi.Text = "";
+            txtUrunFiyat.Text = "";
+            btnKaydet.Text = "Kaydet";
+            btnKaydet.Image = YemekSepeti.Properties.Resources.add24;
+        }
+
+        private void dataGridView1_RowHeaderMouseDoubleClick(object sender, DataGridViewCellMouseEventArgs e)
+        {
+            DialogResult dr = MessageBox.Show("Ürün Kaydı Silinecektir !!\r\nDevam Etmek İstiyor Musunuz ?", "UYARI", MessageBoxButtons.YesNo, MessageBoxIcon.Information);
+            if (dr == DialogResult.Yes)
+            {
+                StreamWriter sw = null;
+                for (int i = 0; i < Kullanici.urunler.Count; i++)
+                {
+                    if (UrunID == Convert.ToInt32(Kullanici.urunler[i].ToString().Split('#')[0]))
+                    {
+                        Kullanici.urunler.RemoveAt(i); // arraylist den sildik
+
+                        sw = new StreamWriter(Kullanici.yol + "urunler.txt", false, Encoding.GetEncoding("windows-1254"));
+
+                        for (int j = 0; j < Kullanici.urunler.Count; j++) // burda da dosyadan siliyoruz
+                            sw.WriteLine(Kullanici.urunler[j].ToString());
+                        sw.Close();
+                    }
+                }
+
+                MessageBox.Show("Ürün Başarıyla Silindi !!", "BİLGİ", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                GridDoldur();
+                btnYeniUrun.PerformClick();// 
+            }
+            else
+                return;
+        }
+    }
+}
+
+
+
+
+
+
+
