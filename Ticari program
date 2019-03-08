@@ -1,0 +1,93 @@
+public partial class Form1 : Form
+    {
+        TicariEntities db = new TicariEntities();
+        public Form1()
+        {
+            InitializeComponent();
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            dataGridView1.DataSource = (from x in db.musteris
+                                        where x.ad.Contains("a") & x.sehir.StartsWith("s")
+                                        select new { adsoy = x.ad + " " + x.soyad, tel = x.tel }).ToList();
+        }
+
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            dataGridView1.DataSource = db.musteris.ToList();
+            comboBox1.DataSource = db.kategoris.ToList();
+            comboBox1.DisplayMember = "ad";
+            comboBox1.ValueMember = "Id";
+
+        }
+
+        private void button2_Click(object sender, EventArgs e)
+        {
+            foreach (DataGridViewRow  item in dataGridView1.SelectedRows)
+            {
+                int id = (int)item.Cells[0].Value;
+                var sil_row = (from x in db.musteris
+                               where x.Id == id
+                               select x).FirstOrDefault();
+                db.musteris.Remove(sil_row);
+                
+
+            }
+            db.SaveChanges();
+            dataGridView1.DataSource = db.musteris.ToList();
+        }
+
+        private void button3_Click(object sender, EventArgs e)
+        {
+            var silinecekler = (from x in db.musteris
+                                where x.Id >= 3
+                                select x).ToList();
+
+            foreach (var r in silinecekler )
+            {
+                db.musteris.Remove(r); 
+            }
+            db.SaveChanges();
+            dataGridView1.DataSource = db.musteris.ToList();
+        }
+
+        private void button4_Click(object sender, EventArgs e)
+        {
+            var silinecekler = (from x in db.musteris
+                                where x.Id >= 3
+                                select x).ToList();
+
+            db.musteris.RemoveRange(silinecekler);
+            db.SaveChanges();
+            dataGridView1.DataSource = db.musteris.ToList();
+        }
+
+        private void button5_Click(object sender, EventArgs e)
+        {
+            //dataGridView2.DataSource = db.stoks.ToList();   // tümü
+            dataGridView2.DataSource = (from x in db.stoks
+                                        where x.cat_id == (int)comboBox1.SelectedValue
+                                        select new { adi=x.adi  }).ToList();
+
+        }
+
+        private void button6_Click(object sender, EventArgs e)
+        {
+            StreamReader sr = new StreamReader("urunler.txt", Encoding.Default);
+            while (!sr.EndOfStream )
+            {
+                string satir= sr.ReadLine();
+                string[] dizi= satir.Split(',');
+
+                stok urun = new stok();
+                urun.adi = dizi[0];
+                urun.brimfiyat = Convert.ToInt16(dizi[1]);
+                urun.cat_id = Convert.ToInt16(dizi[2]);
+                db.stoks.Add(urun);
+            }
+            db.SaveChanges();
+            dataGridView2.DataSource = db.stoks.ToList();
+        }
+    }
+}
